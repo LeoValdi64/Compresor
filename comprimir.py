@@ -1,4 +1,5 @@
 # Compresor de imágenes
+# Creado por: LeoValdi
 from PIL import Image
 import os
 import tkinter as tk
