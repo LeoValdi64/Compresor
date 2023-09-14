@@ -25,7 +25,7 @@ def comprimir_imagen(nombre, carpeta):
             print('Imagen original:', img.size)
 
             # Resize the image
-            resized = img.resize((width, height), Image.ANTIALIAS)
+            resized = img.resize((width, height), Image.LANCZOS)
             print('Imagen redimensionada:', resized.size)
 
             # Save the resized image

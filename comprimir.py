@@ -45,6 +45,7 @@ def comprimir_imagen(nombre, carpeta):
         #height = int(img.height * porcentaje_de_escala)
 
         # Resize the image
+        print("Redimensionando...")
         resized = img.resize((width, height), Image.ANTIALIAS)
 
         print('Imagen redimensionada: ', resized.size)
@@ -73,7 +74,7 @@ carpeta = filedialog.askdirectory()
 print(f'Ruta: {carpeta}')
 
 # Number of cores (you can adjust this according to your machine's capabilities)
-num_cores = 12
+num_cores = 4
 
 # List all the image files in the folder
 imagenes = [nombre for nombre in os.listdir(carpeta) if os.path.splitext(nombre)[1] in [".jpg",".JPG",".JPEG", ".jpeg"]]

@@ -7,9 +7,23 @@ from concurrent.futures import ThreadPoolExecutor
 import webbrowser
 import threading
 
+"""Valores por defecto: """
+DEFAILT_QUALITY = 30
+DEFAULT_RESIZE_OPTION = "dimension"  # "percentage" o "dimension"
+DEFAULT_SCALE_PERCENTAGE = 40
+DEFAULT_WIDTH = 1500
+DEFAILT_HEIGHT = None
 
-def comprimir_imagen(ruta, selected_folder, quality, resize_option, width_or_percentage, height=None, cancel_event=None):
 
+def comprimir_imagen(
+    ruta,
+    selected_folder,
+    quality,
+    resize_option,
+    width_or_percentage,
+    height=None,
+    cancel_event=None,
+):
     # Agregar una verificación para cancelar el proceso
     if cancel_event and cancel_event.is_set():
         return
@@ -17,7 +31,9 @@ def comprimir_imagen(ruta, selected_folder, quality, resize_option, width_or_per
     """Función para comprimir una imagen usando la funcionalidad de PIL."""
     imagen_original = Image.open(ruta)
     formato = imagen_original.format
-    if formato != 'JPEG':
+    ancho_original = imagen_original.width
+    alto_original = imagen_original.height
+    if formato != "JPEG":
         raise ValueError("El formato de imagen no es JPEG")
 
     # Redimensionar la imagen según la opción seleccionada
@@ -26,19 +42,35 @@ def comprimir_imagen(ruta, selected_folder, quality, resize_option, width_or_per
         new_height = int(imagen_original.height * width_or_percentage)
     else:
         new_width = width_or_percentage
-        new_height = height
+        if height is None:
+            if alto_original > ancho_original:
+                new_height = new_width
+                new_width = int(
+                    new_height * imagen_original.width / imagen_original.height
+                )
+            else:
+                new_height = int(
+                    new_width * imagen_original.height / imagen_original.width
+                )
+        else:
+            new_height = height
 
     imagen_redimensionada = imagen_original.resize(
-        (new_width, new_height), Image.LANCZOS)
+        (new_width, new_height), Image.LANCZOS
+    )
     nombre, ext = os.path.splitext(os.path.basename(ruta))
 
-    output_folder = os.path.join(selected_folder, 'comprimido')
+    output_folder = os.path.join(selected_folder, "comprimido")
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
     ruta_salida = os.path.join(output_folder, f"{nombre}_comprimido{ext}")
-    imagen_redimensionada.save(ruta_salida, format="JPEG", quality=quality,
-                               icc_profile=imagen_original.info.get('icc_profile'))
+    imagen_redimensionada.save(
+        ruta_salida,
+        format="JPEG",
+        quality=quality,
+        icc_profile=imagen_original.info.get("icc_profile"),
+    )
     return ruta_salida
 
 
@@ -51,62 +83,88 @@ class CompressorApp(tk.Tk):
         self.quality_frame = ttk.LabelFrame(self, text="Calidad de la imagen")
         self.quality_frame.pack(padx=10, pady=10, fill=tk.X)
 
-        self.quality_var = tk.StringVar(value="50")
-        self.quality_slider = ttk.Scale(self.quality_frame, from_=1, to_=100, orient=tk.HORIZONTAL,
-                                        variable=self.quality_var, command=self.update_quality_entry)
+        self.quality_var = tk.StringVar(value=DEFAILT_QUALITY)
+        self.quality_slider = ttk.Scale(
+            self.quality_frame,
+            from_=1,
+            to_=100,
+            orient=tk.HORIZONTAL,
+            variable=self.quality_var,
+            command=self.update_quality_entry,
+        )
         self.quality_slider.pack(padx=10, pady=5, fill=tk.X)
 
         self.quality_entry = ttk.Entry(
-            self.quality_frame, textvariable=self.quality_var, width=4)
+            self.quality_frame, textvariable=self.quality_var, width=4
+        )
         self.quality_entry.pack(padx=10, pady=5, side=tk.LEFT)
         self.quality_entry.bind("<Return>", self.update_quality_slider)
         self.quality_entry.bind("<FocusOut>", self.update_quality_slider)
 
         # Marco para las opciones de redimensionamiento
-        self.resize_frame = ttk.LabelFrame(
-            self, text="Opción de redimensionamiento")
+        self.resize_frame = ttk.LabelFrame(self, text="Opción de redimensionamiento")
         self.resize_frame.pack(padx=10, pady=10, fill=tk.X)
 
-        self.resize_var = tk.StringVar(value="percentage")
-        self.percentage_rb = ttk.Radiobutton(self.resize_frame, text="Por Porcentaje",
-                                             value="percentage", variable=self.resize_var, command=self.toggle_resize_option)
+        self.resize_var = tk.StringVar(value=DEFAULT_RESIZE_OPTION)
+        self.percentage_rb = ttk.Radiobutton(
+            self.resize_frame,
+            text="Por Porcentaje",
+            value="percentage",
+            variable=self.resize_var,
+            command=self.toggle_resize_option,
+        )
         self.percentage_rb.pack(anchor=tk.W, padx=10, pady=5)
 
-        self.dimension_rb = ttk.Radiobutton(self.resize_frame, text="Por Dimensiones",
-                                            value="dimension", variable=self.resize_var, command=self.toggle_resize_option)
+        self.dimension_rb = ttk.Radiobutton(
+            self.resize_frame,
+            text="Por Dimensiones",
+            value="dimension",
+            variable=self.resize_var,
+            command=self.toggle_resize_option,
+        )
         self.dimension_rb.pack(anchor=tk.W, padx=10, pady=5)
 
         self.percentage_entry = ttk.Entry(self.resize_frame)
+        self.percentage_entry.insert(0, DEFAULT_SCALE_PERCENTAGE)
         self.width_label = ttk.Label(self.resize_frame, text="Ancho:")
+        # Agregar ancho por defecto
         self.width_entry = ttk.Entry(self.resize_frame)
+        self.width_entry.insert(0, DEFAULT_WIDTH)
         self.height_label = ttk.Label(self.resize_frame, text="Alto:")
+        # Agregar alto por defecto
         self.height_entry = ttk.Entry(self.resize_frame)
+        if DEFAILT_HEIGHT is not None:
+            self.height_entry.insert(0, DEFAILT_HEIGHT)
 
         # Marco para los botones
         self.button_frame = ttk.Frame(self)
         self.button_frame.pack(padx=10, pady=10, fill=tk.X)
 
         self.select_folder_button = ttk.Button(
-            self.button_frame, text="Seleccionar Carpeta", command=self.select_folder)
+            self.button_frame, text="Seleccionar Carpeta", command=self.select_folder
+        )
         self.select_folder_button.pack(side=tk.LEFT, padx=10)
 
         self.compress_button = ttk.Button(
-            self.button_frame, text="Comprimir", command=self.compress_images, state=tk.DISABLED)
+            self.button_frame,
+            text="Comprimir",
+            command=self.compress_images,
+            state=tk.DISABLED,
+        )
         self.compress_button.pack(side=tk.RIGHT, padx=10)
 
         # Inicializar
         self.toggle_resize_option()
 
         # Agregar Progressbar
-        self.progress = ttk.Progressbar(
-            self, orient=tk.HORIZONTAL, mode='determinate')
+        self.progress = ttk.Progressbar(self, orient=tk.HORIZONTAL, mode="determinate")
 
         # Inicialmente, la barra de progreso no se mostrará
 
-
         # Agregar botón Cancelar que inicialmente estará oculto
         self.cancel_button = ttk.Button(
-            self.button_frame, text="Cancelar", command=self.cancel_compression)
+            self.button_frame, text="Cancelar", command=self.cancel_compression
+        )
         self.cancel_event = threading.Event()
 
         # Modificar cómo se empaca el botón y la barra de progreso
@@ -115,7 +173,7 @@ class CompressorApp(tk.Tk):
 
     def update_progress(self, increment):
         """Actualiza la barra de progreso"""
-        self.progress['value'] += increment
+        self.progress["value"] += increment
         self.update_idletasks()
 
     def update_quality_entry(self, event=None):
@@ -166,18 +224,24 @@ class CompressorApp(tk.Tk):
         else:
             resize_option = "dimension"
             width = int(self.width_entry.get())
-            height = int(self.height_entry.get())
+            if self.height_entry.get():
+                height = int(self.height_entry.get())
+            else:
+                height = None
 
         # Listar todas las imágenes en la carpeta seleccionada
-        imagenes = [os.path.join(self.selected_folder, nombre) for nombre in os.listdir(
-            self.selected_folder) if os.path.splitext(nombre)[1].lower() in [".jpg", ".jpeg"]]
+        imagenes = [
+            os.path.join(self.selected_folder, nombre)
+            for nombre in os.listdir(self.selected_folder)
+            if os.path.splitext(nombre)[1].lower() in [".jpg", ".jpeg"]
+        ]
 
         # Mostrar la barra de progreso antes de iniciar la compresión
         self.progress.pack(pady=10, padx=10, fill=tk.X)  # Se agregó padx=10
 
         # Inicializar la barra de progreso
-        self.progress['value'] = 0
-        self.progress['maximum'] = len(imagenes)
+        self.progress["value"] = 0
+        self.progress["maximum"] = len(imagenes)
 
         # Mostrar el botón Cancelar
         self.cancel_button.pack(pady=10)
@@ -187,8 +251,19 @@ class CompressorApp(tk.Tk):
         def worker():
             # Usar un bucle for con as_completed para manejar las tareas completadas
             with ThreadPoolExecutor() as executor:
-                futures = [executor.submit(comprimir_imagen, img, self.selected_folder, quality, resize_option, scale_percentage if resize_option ==
-                                           "percentage" else width, scale_percentage if resize_option == "percentage" else height, self.cancel_event) for img in imagenes]
+                futures = [
+                    executor.submit(
+                        comprimir_imagen,
+                        img,
+                        self.selected_folder,
+                        quality,
+                        resize_option,
+                        scale_percentage if resize_option == "percentage" else width,
+                        scale_percentage if resize_option == "percentage" else height,
+                        self.cancel_event,
+                    )
+                    for img in imagenes
+                ]
                 for future in as_completed(futures):
                     if self.cancel_event.is_set():
                         break
@@ -196,25 +271,24 @@ class CompressorApp(tk.Tk):
 
             # Ocultar el botón Cancelar
             self.cancel_button.pack_forget()
-    
-
 
             if self.cancel_event.is_set():
                 messagebox.showwarning(
-                    "Advertencia", "Proceso cancelado por el usuario.")
+                    "Advertencia", "Proceso cancelado por el usuario."
+                )
             else:
                 messagebox.showinfo("Info", "¡Compresión completada!")
 
             # Abre la carpeta "comprimido"
-            webbrowser.open(os.path.join(self.selected_folder, 'comprimido'))
+            webbrowser.open(os.path.join(self.selected_folder, "comprimido"))
 
         threading.Thread(target=worker).start()
-        
 
     def cancel_compression(self):
         """Maneja la solicitud de cancelación del usuario"""
         answer = messagebox.askyesno(
-            "Confirmación", "¿Está seguro de que desea cancelar el proceso?")
+            "Confirmación", "¿Está seguro de que desea cancelar el proceso?"
+        )
         if answer:
             self.cancel_event.set()
 
